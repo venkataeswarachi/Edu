@@ -1,343 +1,215 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Clock, CheckCircle, XCircle, Trophy, RotateCcw, Home } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Trophy, RotateCcw, Home, ArrowRight, ArrowLeft } from "lucide-react";
 
 const Quiz = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { quizQuestions, examType, topic } = location.state || {};
+  const timerRef = useRef(null);
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
-  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(30 * 60);
 
   useEffect(() => {
-    if (!quizQuestions || quizQuestions.length === 0) {
-      //navigate("/prepare");
-      return;
-    }
-
-    // Timer countdown
-    const timer = setInterval(() => {
+    if (!quizQuestions?.length) return;
+    timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleSubmitQuiz();
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(timerRef.current); setShowResults(true); return 0; }
         return prev - 1;
       });
     }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [quizQuestions]);
 
-    return () => clearInterval(timer);
-  }, [quizQuestions, navigate]);
+  const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const timerWarning = timeLeft < 300; // < 5 min
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  const handleAnswerSelect = (qIdx, answer) => setSelectedAnswers((prev) => ({ ...prev, [qIdx]: answer }));
+  const handleSubmitQuiz = () => { clearInterval(timerRef.current); setShowResults(true); };
 
-  const handleAnswerSelect = (questionIndex, answer) => {
-    setSelectedAnswers({
-      ...selectedAnswers,
-      [questionIndex]: answer
-    });
-  };
+  const calculateScore = () => quizQuestions.filter((q, i) => selectedAnswers[i] === q.correct_answer).length;
 
-  const handleNext = () => {
-    if (currentQuestionIndex < quizQuestions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-  };
-
-  const handleSubmitQuiz = () => {
-    setShowResults(true);
-    setQuizCompleted(true);
-  };
-
-  const calculateScore = () => {
-    let correct = 0;
-    quizQuestions.forEach((question, index) => {
-      if (selectedAnswers[index] === question.correct_answer) {
-        correct++;
-      }
-    });
-    return correct;
-  };
-
-  const getScorePercentage = () => {
-    return Math.round((calculateScore() / quizQuestions.length) * 100);
-  };
-
-  const getScoreColor = () => {
-    const percentage = getScorePercentage();
-    if (percentage >= 80) return "text-green-600";
-    if (percentage >= 60) return "text-yellow-600";
-    return "text-red-600";
-  };
-
-  const getScoreBgColor = () => {
-    const percentage = getScorePercentage();
-    if (percentage >= 80) return "from-green-500 to-emerald-600";
-    if (percentage >= 60) return "from-yellow-500 to-orange-600";
-    return "from-red-500 to-pink-600";
-  };
-
-  if (!quizQuestions || quizQuestions.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-pink-50 flex items-center justify-center">
-        <div className="bg-white rounded-3xl shadow-xl p-8 text-center max-w-md">
-          <XCircle className="text-red-500 w-16 h-16 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">No Quiz Questions</h2>
-          <p className="text-gray-600 mb-6">Please complete the practice session first.</p>
-          <button
-            onClick={() => navigate("/prepare")}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transition-all duration-200"
-          >
-            Go to Preparation
-          </button>
+  if (!quizQuestions?.length) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-10 text-center max-w-sm">
+        <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <XCircle size={28} className="text-rose-500" />
         </div>
+        <h2 className="text-xl font-black text-slate-900 mb-2">No Quiz Data</h2>
+        <p className="text-slate-400 mb-6 text-sm">Please complete the practice session first.</p>
+        <button onClick={() => navigate("/prepare")}
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:from-indigo-700 hover:to-purple-700 transition-all">
+          Go to Preparation
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
 
   if (showResults) {
     const score = calculateScore();
-    const percentage = getScorePercentage();
+    const pct = Math.round((score / quizQuestions.length) * 100);
+    const r = 52; const circ = 2 * Math.PI * r;
+    const color = pct >= 80 ? "#10b981" : pct >= 60 ? "#f59e0b" : "#f43f5e";
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4">
+      <div className="min-h-screen bg-slate-50 py-8 px-4">
         <div className="max-w-4xl mx-auto">
-
-          {/* Results Header */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 mb-8 text-center">
-            <div className={`w-24 h-24 bg-gradient-to-r ${getScoreBgColor()} rounded-full flex items-center justify-center mx-auto mb-6`}>
-              <Trophy className="text-white" size={40} />
+          {/* Score card */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 mb-6 text-center">
+            <div className="relative inline-flex items-center justify-center mb-4">
+              <svg width="140" height="140" viewBox="0 0 140 140" className="-rotate-90">
+                <circle cx="70" cy="70" r={r} fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                <circle cx="70" cy="70" r={r} fill="none" stroke={color} strokeWidth="12"
+                  strokeDasharray={`${(pct / 100) * circ} ${circ - (pct / 100) * circ}`} strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <Trophy size={22} style={{ color }} />
+                <span className="text-2xl font-black mt-1" style={{ color }}>{pct}%</span>
+              </div>
             </div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-4">Quiz Completed!</h1>
-            <div className="text-6xl font-bold mb-2">
-              <span className={getScoreColor()}>{score}</span>
-              <span className="text-gray-400">/{quizQuestions.length}</span>
+            <h1 className="text-2xl font-black text-slate-900 mb-1">Quiz Complete!</h1>
+            <p className="text-slate-400 text-sm">{examType?.replace("_", " ")} · {topic}</p>
+            <div className="mt-4 inline-flex items-center gap-1.5 font-bold" style={{ color }}>
+              <span className="text-3xl">{score}</span>
+              <span className="text-slate-300 text-2xl">/</span>
+              <span className="text-3xl text-slate-400">{quizQuestions.length}</span>
             </div>
-            <div className={`text-2xl font-bold ${getScoreColor()} mb-6`}>
-              {percentage}% Score
-            </div>
-            <p className="text-gray-600 text-lg">
-              {examType?.replace("_", " ")} - {topic}
-            </p>
+            <p className="text-slate-400 text-xs mt-1">correct answers</p>
           </div>
 
-          {/* Detailed Results */}
-          <div className="space-y-6">
-            {quizQuestions.map((question, index) => {
-              const userAnswer = selectedAnswers[index];
-              const isCorrect = userAnswer === question.correct_answer;
-
+          {/* Detailed results */}
+          <div className="space-y-4 mb-8">
+            {quizQuestions.map((q, i) => {
+              const user = selectedAnswers[i];
+              const ok = user === q.correct_answer;
               return (
-                <div key={index} className="bg-white rounded-2xl shadow-lg p-6">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
-                      isCorrect ? "bg-green-500" : "bg-red-500"
-                    }`}>
-                      {isCorrect ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                <div key={i} className={`bg-white rounded-2xl border shadow-sm p-5 ${ok ? "border-emerald-100" : "border-rose-100"}`}>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${ok ? "bg-emerald-500" : "bg-rose-500"}`}>
+                      {ok ? <CheckCircle size={14} className="text-white" /> : <XCircle size={14} className="text-white" />}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-800 mb-3">
-                        Question {index + 1}: {question.question}
-                      </h3>
-
-                      <div className="space-y-2 mb-4">
-                        {question.options.map((option, optIndex) => {
-                          const optionLetter = String.fromCharCode(65 + optIndex); // A, B, C, D
-                          let optionClass = "border-gray-200";
-
-                          if (option === question.correct_answer) {
-                            optionClass = "border-green-500 bg-green-50 text-green-800";
-                          } else if (option === userAnswer && !isCorrect) {
-                            optionClass = "border-red-500 bg-red-50 text-red-800";
-                          }
-
-                          return (
-                            <div key={optIndex} className={`p-3 rounded-lg border-2 ${optionClass}`}>
-                              <span className="font-medium">{optionLetter}.</span> {option}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {!isCorrect && (
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-bold text-blue-800 mb-2">Solution:</h4>
-                          <p className="text-blue-700">{question.solution}</p>
+                    <h3 className="text-sm font-bold text-slate-900 leading-relaxed">Q{i + 1}: {q.question}</h3>
+                  </div>
+                  <div className="pl-10 space-y-1.5">
+                    {q.options.map((opt, j) => {
+                      const letter = String.fromCharCode(65 + j);
+                      const isCorrect = letter === q.correct_answer;
+                      const isUserWrong = user === letter && !ok;
+                      return (
+                        <div key={j} className={`text-xs font-medium px-3 py-2 rounded-lg border ${isCorrect ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                            : isUserWrong ? "border-rose-300 bg-rose-50 text-rose-800"
+                              : "border-slate-100 text-slate-500"
+                          }`}>
+                          {letter}. {opt}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })}
+                    {!ok && q.solution && (
+                      <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700 leading-relaxed">
+                        <span className="font-bold">Explanation: </span>{q.solution}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4 justify-center mt-8">
-            <button
-              onClick={() => navigate("/prepare")}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-8 py-3 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
-            >
-              <RotateCcw size={18} />
-              Practice Again
+          {/* Actions */}
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => navigate("/prepare")}
+              className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:from-indigo-700 hover:to-purple-700 shadow-md transition-all">
+              <RotateCcw size={15} /> Practice Again
             </button>
-            <button
-              onClick={() => navigate("/")}
-              className="bg-gray-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-gray-600 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
-            >
-              <Home size={18} />
-              Home
+            <button onClick={() => navigate("/feed")}
+              className="flex items-center gap-2 bg-white text-slate-600 px-6 py-3 rounded-xl font-bold text-sm border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all">
+              <Home size={15} /> Home
             </button>
           </div>
-
         </div>
       </div>
     );
   }
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
+  const progress = ((currentQuestionIndex + 1) / quizQuestions.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="flex justify-between items-center mb-4">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                {examType?.replace("_", " ")} Quiz
-              </h1>
-              <p className="text-gray-600">Topic: {topic}</p>
+              <h1 className="text-base font-black text-slate-900">{examType?.replace("_", " ")} Quiz</h1>
+              <p className="text-xs text-slate-400">{topic} · Q{currentQuestionIndex + 1}/{quizQuestions.length}</p>
             </div>
-            <div className="text-right">
-              <div className="flex items-center gap-2 text-gray-600 mb-2">
-                <Clock size={18} />
-                <span className="font-medium">{formatTime(timeLeft)}</span>
-              </div>
-              <div className="text-sm text-gray-500">
-                Question {currentQuestionIndex + 1} of {quizQuestions.length}
-              </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-sm border transition-colors ${timerWarning ? "bg-rose-50 border-rose-200 text-rose-600 animate-pulse" : "bg-slate-50 border-slate-200 text-slate-700"
+              }`}>
+              <Clock size={14} /> {formatTime(timeLeft)}
             </div>
           </div>
-
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 h-3 rounded-full transition-all duration-500"
-              style={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}
-            ></div>
+          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }} />
           </div>
         </div>
 
-        {/* Question Card */}
-        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              Question {currentQuestionIndex + 1}
-            </h2>
-            <p className="text-lg text-gray-700 leading-relaxed">
-              {currentQuestion.question}
-            </p>
-          </div>
-
-          {/* Options */}
-          <div className="space-y-4 mb-8">
-            {currentQuestion.options.map((option, index) => {
-              const optionLetter = String.fromCharCode(65 + index); // A, B, C, D
-              const isSelected = selectedAnswers[currentQuestionIndex] === option;
-
+        {/* Question */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-4">
+          <p className="text-base font-bold text-slate-900 leading-relaxed mb-6">{currentQuestion.question}</p>
+          <div className="space-y-2.5">
+            {currentQuestion.options.map((option, i) => {
+              const letter = String.fromCharCode(65 + i);
+              const selected = selectedAnswers[currentQuestionIndex] === option;
               return (
-                <button
-                  key={index}
-                  onClick={() => handleAnswerSelect(currentQuestionIndex, option)}
-                  className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-200 ${
-                    isSelected
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                      : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                      isSelected
-                        ? "bg-indigo-500 text-white"
-                        : "bg-gray-200 text-gray-600"
+                <button key={i} onClick={() => handleAnswerSelect(currentQuestionIndex, option)}
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all duration-150 ${selected ? "border-indigo-500 bg-indigo-50" : "border-slate-100 hover:border-indigo-200 hover:bg-slate-50"
                     }`}>
-                      {optionLetter}
-                    </div>
-                    <span className="font-medium">{option}</span>
-                  </div>
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 transition-all ${selected ? "bg-indigo-500 text-white" : "bg-slate-100 text-slate-500"
+                    }`}>{letter}</span>
+                  <span className={`text-sm font-medium ${selected ? "text-indigo-800" : "text-slate-700"}`}>{option}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex justify-between">
-            <button
-              onClick={handlePrevious}
-              disabled={currentQuestionIndex === 0}
-              className="px-6 py-3 rounded-xl font-medium border-2 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
+          {/* Navigation */}
+          <div className="mt-6 flex justify-between items-center">
+            <button onClick={() => setCurrentQuestionIndex(i => i - 1)} disabled={currentQuestionIndex === 0}
+              className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              <ArrowLeft size={15} /> Prev
             </button>
-
             {currentQuestionIndex === quizQuestions.length - 1 ? (
-              <button
-                onClick={handleSubmitQuiz}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                Submit Quiz
+              <button onClick={handleSubmitQuiz}
+                className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:from-emerald-600 hover:to-teal-700 shadow-md transition-all">
+                <CheckCircle size={15} /> Submit Quiz
               </button>
             ) : (
-              <button
-                onClick={handleNext}
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:from-indigo-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                Next
+              <button onClick={() => setCurrentQuestionIndex(i => i + 1)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition">
+                Next <ArrowRight size={15} />
               </button>
             )}
           </div>
-
         </div>
 
-        {/* Question Navigation */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="font-semibold text-gray-800 mb-4">Question Navigation</h3>
-          <div className="grid grid-cols-10 gap-2">
-            {quizQuestions.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentQuestionIndex(index)}
-                className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
-                  index === currentQuestionIndex
-                    ? "bg-indigo-500 text-white"
-                    : selectedAnswers[index]
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                }`}
-              >
-                {index + 1}
-              </button>
+        {/* Question navigator */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Navigate</p>
+          <div className="flex flex-wrap gap-2">
+            {quizQuestions.map((_, i) => (
+              <button key={i} onClick={() => setCurrentQuestionIndex(i)}
+                className={`w-9 h-9 rounded-lg text-xs font-bold transition-all ${i === currentQuestionIndex ? "bg-indigo-600 text-white shadow-sm"
+                    : selectedAnswers[i] ? "bg-emerald-500 text-white"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}>{i + 1}</button>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );

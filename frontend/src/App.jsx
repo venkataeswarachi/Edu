@@ -19,6 +19,7 @@ import HowToUse from "./pages/HowToUse";
 import Preparation from "./pages/Preparation";
 import Quiz from "./pages/Quiz";
 import Landing from "./pages/Landing";
+import CareerRecommend from "./pages/CareerRecommend";
 
 function AppContent() {
   const location = useLocation();
@@ -32,7 +33,7 @@ function AppContent() {
   }, []);
 
   // Routes where layout should be hidden
-  const hiddenRoutes = ["/", "/landing", "/login", "/signup","/about"];
+  const hiddenRoutes = ["/", "/landing", "/login", "/signup", "/about"];
 
   // Show layout only if current route is NOT in hiddenRoutes
   const showLayout = !hiddenRoutes.includes(location.pathname);
@@ -41,7 +42,7 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50">
 
       {/* Navbar */}
-      {showLayout && <Navbar />}
+      {showLayout && <Navbar sidebarVisible />}
 
       {/* Sidebar */}
       {showLayout && <Sidebar />}
@@ -66,6 +67,7 @@ function AppContent() {
           <Route path="/quiz" element={<Quiz />} />
           <Route path="/chat-ai" element={<ChatAI />} />
           <Route path="/predict" element={<PredictScope />} />
+          <Route path="/career" element={<CareerRecommend />} />
           <Route path="/about" element={<About />} />
           <Route path="/how-to-use" element={<HowToUse />} />
 

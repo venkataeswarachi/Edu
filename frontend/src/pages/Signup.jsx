@@ -1,60 +1,137 @@
 import React, { useState } from 'react';
 import api from '../services/api';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus, ArrowRight, Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock, User, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 
 const Signup = () => {
     const [req, setReq] = useState({ name: '', username: '', email: '', password: '', role: 'STUDENT' });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
     const navigate = useNavigate();
 
     const handleSignup = async (e) => {
         e.preventDefault();
+        setLoading(true);
+        setError('');
         try {
             await api.post('/auth/signup', req);
-            alert("Account created successfully!");
-            navigate('/login');
-        } catch (err) {
-            alert("Registration failed. Email or Username might be taken.");
+            setSuccess(true);
+            setTimeout(() => navigate('/login'), 1800);
+        } catch {
+            setError('Registration failed. Email or username may already be taken.');
+        } finally {
+            setLoading(false);
         }
     };
 
-    return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
-            <div className="w-full max-w-md">
-                <div className="text-center mb-8">
-                    <div className="inline-flex p-4 bg-indigo-600 rounded-3xl shadow-2xl shadow-indigo-200 mb-4 text-white">
-                        <UserPlus size={40} />
-                    </div>
-                    <h1 className="text-4xl font-black text-slate-900 mb-2">Create Account</h1>
-                    <p className="text-slate-500">Join our academic community today</p>
-                </div>
+    const InputField = ({ icon: Icon, type = 'text', placeholder, value, onChange, required = true }) => (
+        <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <Icon size={16} />
+            </span>
+            <input
+                type={type}
+                placeholder={placeholder}
+                value={value}
+                onChange={onChange}
+                required={required}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-3 focus:ring-indigo-100 transition-all"
+            />
+        </div>
+    );
 
-                <form onSubmit={handleSignup} className="space-y-4">
-                    <div className="bg-white rounded-2xl border border-slate-200 p-1 focus-within:border-indigo-500 transition-all flex items-center px-4">
-                        <User className="text-slate-400" size={20}/>
-                        <input className="w-full p-4 bg-transparent outline-none font-medium" placeholder="Full Name" onChange={e => setReq({...req, name: e.target.value})} required />
+    if (success) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-12 text-center max-w-sm animate-fade-up">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle size={30} className="text-emerald-600" />
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-200 p-1 focus-within:border-indigo-500 transition-all flex items-center px-4">
-                        <User className="text-slate-400" size={20}/>
-                        <input className="w-full p-4 bg-transparent outline-none font-medium" placeholder="Username" onChange={e => setReq({...req, username: e.target.value})} required />
+                    <h2 className="text-xl font-black text-slate-900 mb-2">Account Created!</h2>
+                    <p className="text-sm text-slate-400">Redirecting you to sign in…</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+
+            {/* Decorative blobs */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-32 -right-32 w-80 h-80 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob" />
+                <div className="absolute -bottom-32 -left-32 w-72 h-72 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000" />
+            </div>
+
+            <div className="relative w-full max-w-md animate-fade-up">
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
+
+                    {/* Header */}
+                    <div className="text-center mb-8">
+                        <div className="flex items-center justify-center mb-4">
+                            <img
+                                src="/logo.jpg"
+                                alt="EduPortal"
+                                className="h-14 w-auto object-contain rounded-2xl shadow-md"
+                            />
+                        </div>
+                        <h1 className="text-2xl font-black text-slate-900">Create account</h1>
+                        <p className="text-slate-400 text-sm mt-1">Join the EduPortal community</p>
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-200 p-1 focus-within:border-indigo-500 transition-all flex items-center px-4">
-                        <Mail className="text-slate-400" size={20}/>
-                        <input className="w-full p-4 bg-transparent outline-none font-medium" type="email" placeholder="Email" onChange={e => setReq({...req, email: e.target.value})} required />
-                    </div>
-                    <div className="bg-white rounded-2xl border border-slate-200 p-1 focus-within:border-indigo-500 transition-all flex items-center px-4">
-                        <Lock className="text-slate-400" size={20}/>
-                        <input className="w-full p-4 bg-transparent outline-none font-medium" type="password" placeholder="Password" onChange={e => setReq({...req, password: e.target.value})} required />
-                    </div>
-                    
-                    <button className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl flex items-center justify-center gap-2 group">
-                        Register Now <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform"/>
-                    </button>
-                </form>
-                
-                <p className="mt-8 text-center font-medium text-slate-500">
-                    Already have an account? <Link to="/login" className="text-indigo-600 hover:underline">Sign In</Link>
-                </p>
+
+                    {/* Error */}
+                    {error && (
+                        <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl px-4 py-3 mb-6">
+                            <AlertCircle size={15} className="flex-shrink-0" />
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSignup} className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Full Name</label>
+                            <InputField icon={User} placeholder="Your full name" value={req.name} onChange={(e) => setReq({ ...req, name: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Username</label>
+                            <InputField icon={User} placeholder="Choose a username" value={req.username} onChange={(e) => setReq({ ...req, username: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Email</label>
+                            <InputField icon={Mail} type="email" placeholder="you@example.com" value={req.email} onChange={(e) => setReq({ ...req, email: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
+                            <InputField icon={Lock} type="password" placeholder="Create a password" value={req.password} onChange={(e) => setReq({ ...req, password: e.target.value })} />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="group w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-xl font-bold text-sm hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200 disabled:opacity-60 disabled:cursor-not-allowed transition-all mt-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                    Creating account…
+                                </>
+                            ) : (
+                                <>
+                                    Create account
+                                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    <p className="mt-6 text-center text-sm text-slate-400">
+                        Already have an account?{' '}
+                        <Link to="/login" className="text-indigo-600 font-semibold hover:underline">
+                            Sign in →
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     );

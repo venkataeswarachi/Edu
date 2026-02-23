@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import api from "../services/api";
 import {
-  TrendingUp,
-  Zap,
-  BookOpen,
-  Target,
-  Award,
-  Rocket,
-  Code,
-  Clock,
-  CheckCircle,
-  Lightbulb,
-  ArrowRight,
-  Loader,
-  Plus
+  TrendingUp, Zap, BookOpen, Target, Rocket, Code, Lightbulb,
+  ArrowLeft, Loader2, CheckCircle, Clock, Plus, AlertCircle
 } from "lucide-react";
+
+const COURSES = [
+  { id: "web-development", name: "Web Development", icon: Code, color: "from-blue-500 to-cyan-500", bg: "from-blue-50 to-cyan-50" },
+  { id: "data-science", name: "Data Science", icon: TrendingUp, color: "from-indigo-500 to-blue-600", bg: "from-indigo-50 to-blue-50" },
+  { id: "cloud-computing", name: "Cloud Computing", icon: Zap, color: "from-sky-500 to-indigo-500", bg: "from-sky-50 to-indigo-50" },
+  { id: "ai-ml", name: "AI & Machine Learning", icon: Lightbulb, color: "from-purple-500 to-pink-500", bg: "from-purple-50 to-pink-50" },
+  { id: "devops", name: "DevOps", icon: Rocket, color: "from-rose-500 to-orange-500", bg: "from-rose-50 to-orange-50" },
+  { id: "cybersecurity", name: "Cybersecurity", icon: Target, color: "from-emerald-500 to-teal-500", bg: "from-emerald-50 to-teal-50" },
+];
 
 const Trends = () => {
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -23,307 +21,227 @@ const Trends = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const courses = [
-    { id: "web-development", name: "Web Development", icon: <Code size={24} /> },
-    { id: "data-science", name: "Data Science", icon: <TrendingUp size={24} /> },
-    { id: "cloud-computing", name: "Cloud Computing", icon: <Zap size={24} /> },
-    { id: "ai-ml", name: "AI & Machine Learning", icon: <Lightbulb size={24} /> },
-    { id: "devops", name: "DevOps", icon: <Rocket size={24} /> },
-    { id: "cybersecurity", name: "Cybersecurity", icon: <Target size={24} /> },
-  ];
-
-  const handleCourseSelect = async (courseId) => {
-    setSelectedCourse(courseId);
-    setCustomDomain("");
-    setLoading(true);
-    setError(null);
-
-    const courseName = courses.find((c) => c.id === courseId)?.name || courseId;
-    await fetchTrends(courseName);
-  };
-
-  const handleCustomDomainSubmit = async (e) => {
-    e.preventDefault();
-    if (!customDomain.trim()) {
-      setError("Please enter a domain name");
-      return;
-    }
-
-    setSelectedCourse(null);
-    setLoading(true);
-    setError(null);
-    await fetchTrends(customDomain.trim());
-  };
-
   const fetchTrends = async (courseName) => {
+    setLoading(true);
+    setError(null);
     try {
-      const response = await api.post("/ai/latest-trends", {
-        course: courseName,
-      });
-
-      console.log("API Response:", response.data);
-
+      const response = await api.post("/ai/latest-trends", { course: courseName });
       let data;
-      try {
-        data = JSON.parse(response.data.trends);
-        console.log("Parsed trends data:", data);
-      } catch (parseError) {
-        console.error("JSON parse error:", parseError);
-        setError("Failed to parse trends data. Please try again.");
-        setLoading(false);
-        return;
-      }
-
+      try { data = JSON.parse(response.data.trends); }
+      catch { setError("Failed to parse trends data."); return; }
       if (!data.trending_domains || !data.technologies || !data.roadmap) {
-        setError("Invalid trends data structure. Please try again.");
-        setLoading(false);
-        return;
+        setError("Invalid response structure."); return;
       }
-
       setTrendsData(data);
-    } catch (err) {
-      console.error("Error fetching trends:", err);
+    } catch {
       setError("Failed to fetch trends. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCourseSelect = (courseId) => {
+    setSelectedCourse(courseId);
+    setCustomDomain("");
+    const courseName = COURSES.find((c) => c.id === courseId)?.name || courseId;
+    fetchTrends(courseName);
+  };
+
+  const handleCustomSubmit = (e) => {
+    e.preventDefault();
+    if (!customDomain.trim()) return;
+    setSelectedCourse(null);
+    fetchTrends(customDomain.trim());
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto py-8 px-4">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <TrendingUp className="text-indigo-600" size={32} />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              Latest Trends & Roadmap
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+              <TrendingUp size={22} className="text-indigo-500" />
+              Latest Trends
             </h1>
+            <p className="text-sm text-slate-400 mt-0.5">Explore trends, technologies, and roadmaps for any domain</p>
           </div>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-            Explore trending domains, technologies, and career paths for your chosen field
-          </p>
+          {trendsData && (
+            <button
+              onClick={() => { setTrendsData(null); setSelectedCourse(null); setError(null); }}
+              className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600 bg-white border border-slate-200 px-3 py-2 rounded-xl transition-all"
+            >
+              <ArrowLeft size={15} /> Back
+            </button>
+          )}
         </div>
 
-        {!trendsData ? (
-          <>
-            {/* Course Selection */}
-            <div className="mb-12">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-                Select a Course to Explore Trends
-              </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.map((course) => (
-                  <button
-                    key={course.id}
-                    onClick={() => handleCourseSelect(course.id)}
-                    disabled={loading}
-                    className="bg-white p-6 rounded-3xl shadow-lg hover:shadow-xl cursor-pointer transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="p-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white mb-4 w-fit mx-auto">
-                      {course.icon}
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-800">
-                      {course.name}
-                    </h3>
-                    <p className="text-gray-600 text-sm mt-2 flex items-center gap-2 justify-center">
-                      Explore <ArrowRight size={16} />
-                    </p>
-                  </button>
-                ))}
-              </div>
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-200 animate-pulse-ring">
+              <Loader2 size={28} className="text-white animate-spin" />
+            </div>
+            <p className="text-slate-600 font-semibold">Analyzing trends for you…</p>
+            <p className="text-slate-400 text-sm">This may take a few seconds</p>
+            {/* Skeleton shimmer */}
+            <div className="w-full max-w-4xl grid md:grid-cols-3 gap-4 mt-4">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="skeleton h-32 rounded-2xl" />
+              ))}
+            </div>
+          </div>
+        )}
 
-              {/* Custom Domain Input */}
-              <div className="mt-12 pt-8 border-t border-gray-200">
-                <h3 className="text-2xl font-bold text-gray-800 mb-2 text-center">
-                  Explore Custom Domain
-                </h3>
-                <p className="text-gray-600 text-center mb-6">
-                  Can't find your domain? Type any custom domain to explore trends and learning paths
-                </p>
-                <form
-                  onSubmit={handleCustomDomainSubmit}
-                  className="flex gap-3 max-w-lg mx-auto"
+        {!loading && !trendsData && (
+          <div className="animate-fade-up">
+            {/* Course grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+              {COURSES.map(({ id, name, icon: Icon, color, bg }) => (
+                <button
+                  key={id}
+                  onClick={() => handleCourseSelect(id)}
+                  disabled={loading}
+                  className={`group bg-white border border-slate-100 p-6 rounded-2xl shadow-sm hover:shadow-lg hover:border-transparent hover:-translate-y-1 transition-all duration-200 text-left ${selectedCourse === id ? "ring-2 ring-indigo-500" : ""}`}
                 >
-                  <input
-                    type="text"
-                    placeholder="e.g., Blockchain, IoT, Game Dev, Cybersecurity..."
-                    value={customDomain}
-                    onChange={(e) => setCustomDomain(e.target.value)}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
-                  >
-                    <Plus size={20} />
-                    Explore
-                  </button>
-                </form>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Back Button and Title */}
-            <div className="mb-8">
-              <button
-                onClick={() => {
-                  setTrendsData(null);
-                  setSelectedCourse(null);
-                }}
-                className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-semibold mb-4 transition-colors"
-              >
-                <ArrowRight size={18} className="rotate-180" />
-                Back to Courses
-              </button>
-              <h2 className="text-3xl font-bold text-gray-800">
-                {trendsData.course} - Latest Trends & Roadmap
-              </h2>
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-4 shadow-md group-hover:scale-110 transition-transform`}>
+                    <Icon size={20} className="text-white" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900">{name}</h3>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1 group-hover:text-indigo-600 transition-colors">
+                    Explore trends <ArrowLeft size={12} className="rotate-180" />
+                  </p>
+                </button>
+              ))}
             </div>
 
-            {/* Trending Domains */}
-            <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                <Zap className="text-yellow-500" size={28} />
-                Trending Domains
-              </h3>
-              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {trendsData.trending_domains?.map((domain, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gradient-to-br from-yellow-50 to-orange-50 p-4 rounded-xl border-2 border-yellow-200 hover:shadow-lg transition-all duration-200"
-                  >
-                    <p className="font-semibold text-gray-800">{domain}</p>
+            {/* Custom domain */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <h3 className="text-base font-bold text-slate-800 mb-1">Custom Domain</h3>
+              <p className="text-sm text-slate-400 mb-4">Enter any domain not listed above</p>
+              <form onSubmit={handleCustomSubmit} className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="e.g., Blockchain, Robotics, Game Development…"
+                  value={customDomain}
+                  onChange={(e) => setCustomDomain(e.target.value)}
+                  className="flex-1 px-4 py-3 border-2 border-slate-100 bg-slate-50 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-3 focus:ring-indigo-100 transition-all"
+                />
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-3 rounded-xl font-bold text-sm hover:from-indigo-700 hover:to-purple-700 shadow-md transition-all"
+                >
+                  <Plus size={16} /> Explore
+                </button>
+              </form>
+            </div>
+
+            {error && (
+              <div className="mt-4 flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl px-4 py-3">
+                <AlertCircle size={15} /> {error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!loading && trendsData && (
+          <div className="space-y-8 animate-fade-up">
+            {/* Domains */}
+            <section>
+              <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                <TrendingUp size={18} className="text-indigo-500" /> Trending Domains
+              </h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {trendsData.trending_domains?.map((domain, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-sm">{i + 1}</div>
+                      <h3 className="font-bold text-slate-900 text-sm">{domain.name}</h3>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{domain.description}</p>
+                    {domain.growth && (
+                      <div className="mt-3 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-full text-[11px] font-bold">
+                        <TrendingUp size={11} /> {domain.growth}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
             {/* Technologies */}
-            <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                <Code className="text-blue-500" size={28} />
-                Technologies in Demand
-              </h3>
-              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {trendsData.technologies?.map((tech, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 rounded-xl border-2 border-blue-200 hover:shadow-lg transition-all duration-200"
-                  >
-                    <p className="font-semibold text-gray-800">{tech}</p>
+            <section>
+              <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                <Zap size={18} className="text-purple-500" /> Key Technologies
+              </h2>
+              <div className="flex flex-wrap gap-2.5">
+                {trendsData.technologies?.map((tech, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-white border border-slate-100 shadow-sm px-4 py-2 rounded-full text-sm text-slate-700 font-semibold hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-all cursor-default">
+                    <div className="w-2 h-2 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500" />
+                    {typeof tech === 'object' ? tech.name : tech}
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Tools & Frameworks */}
-            <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                <Rocket className="text-red-500" size={28} />
-                Essential Tools & Frameworks
-              </h3>
-              <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {trendsData.tools?.map((tool, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-xl border-2 border-red-200 hover:shadow-lg transition-all duration-200"
-                  >
-                    <p className="font-semibold text-gray-800">{tool}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            </section>
 
             {/* Roadmap */}
-            <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                <BookOpen className="text-green-500" size={28} />
-                Learning Roadmap: Beginner to Expert
-              </h3>
+            <section>
+              <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                <BookOpen size={18} className="text-emerald-500" /> Learning Roadmap
+              </h2>
               <div className="relative">
-                {/* Timeline Line */}
-                <div className="absolute left-8 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-purple-600"></div>
-
-                {/* Roadmap Steps */}
-                <div className="space-y-8">
-                  {trendsData.roadmap?.map((step, idx) => (
-                    <div key={idx} className="relative pl-24">
-                      {/* Timeline Dot */}
-                      <div className="absolute left-0 w-16 h-16 flex items-center justify-center">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg border-4 border-white shadow-lg">
-                          {idx + 1}
-                        </div>
+                {/* Timeline line */}
+                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 to-purple-300" />
+                <div className="space-y-4 pl-12">
+                  {trendsData.roadmap?.map((step, i) => (
+                    <div key={i} className="relative bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+                      {/* Dot */}
+                      <div className="absolute -left-9 top-5 w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-[11px] font-black shadow-md">
+                        {i + 1}
                       </div>
-
-                      {/* Content */}
-                      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-2xl border-2 border-indigo-200 hover:shadow-lg transition-all duration-200">
-                        <div className="flex items-start justify-between mb-3">
-                          <h4 className="text-lg font-bold text-gray-800">
-                            {step.step}
-                          </h4>
-                          {step.duration && (
-                            <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full text-sm font-semibold text-indigo-600">
-                              <Clock size={14} />
-                              {step.duration}
-                            </div>
-                          )}
+                      <h3 className="font-bold text-slate-900 text-sm mb-1">{step.step || step.title}</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">{step.description || step.details}</p>
+                      {step.timeframe && (
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400 font-semibold">
+                          <Clock size={11} /> {step.timeframe}
                         </div>
-                        <p className="text-gray-700 leading-relaxed">
-                          {step.description}
-                        </p>
-                      </div>
+                      )}
+                      {step.skills && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {step.skills.map((s, j) => (
+                            <span key={j} className="text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-semibold">{s}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Career Roles */}
-            <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                <Award className="text-purple-500" size={28} />
-                Career Roles & Opportunities
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {trendsData.career_roles?.map((role, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-xl border-2 border-purple-200 flex items-center gap-3 hover:shadow-lg transition-all duration-200"
-                  >
-                    <CheckCircle className="text-purple-600" size={24} />
-                    <p className="font-semibold text-gray-800">{role}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Future Scope */}
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl shadow-xl p-8 text-white">
-              <h3 className="text-2xl font-bold mb-4 flex items-center gap-3">
-                <Lightbulb size={28} />
-                Future Scope & Opportunities
-              </h3>
-              <p className="text-lg leading-relaxed">
-                {trendsData.future_scope}
-              </p>
-            </div>
-          </>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader className="animate-spin text-indigo-600" size={48} />
-            <p className="text-gray-600 mt-4 text-lg">Fetching latest trends...</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center">
-            <p className="text-red-700 font-semibold text-lg">{error}</p>
+            {/* Career Paths */}
+            {trendsData.career_paths && (
+              <section>
+                <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                  <Target size={18} className="text-rose-500" /> Career Paths
+                </h2>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {trendsData.career_paths.map((path, i) => (
+                    <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-orange-100 flex items-center justify-center flex-shrink-0">
+                        <Target size={18} className="text-rose-500" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm mb-1">{path.title || path.name}</h3>
+                        <p className="text-xs text-slate-500">{path.description}</p>
+                        {path.avg_salary && (
+                          <p className="mt-2 text-xs text-emerald-600 font-bold">{path.avg_salary}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>
