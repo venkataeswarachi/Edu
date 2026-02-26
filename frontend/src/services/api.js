@@ -12,4 +12,10 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Direct connection to the Python AI service (no Spring Boot proxy)
+export const aiApi = axios.create({
+    baseURL: 'http://localhost:8000',
+    timeout: 60000, // 60s — LLM can be slow
+});
+
 export default api;

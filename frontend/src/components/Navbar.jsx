@@ -47,10 +47,7 @@ const Navbar = ({ sidebarVisible = false }) => {
         When sidebar is visible push the navbar content right by 256px (w-64)
         so the logo starts at the left edge of the main content area.
       */}
-      <div
-        className="flex justify-between items-center h-16 px-6 transition-all duration-300"
-        style={{ paddingLeft: sidebarVisible ? "272px" : undefined }}
-      >
+      <div className="flex justify-between items-center h-16 px-6">
         {/* ── Logo ── */}
         <Link to="/" className="group flex items-center gap-2.5">
           <img
@@ -58,6 +55,9 @@ const Navbar = ({ sidebarVisible = false }) => {
             alt="EduPortal"
             className="h-9 w-auto object-contain rounded-lg transition-transform duration-200 group-hover:scale-105"
           />
+          <span className="text-lg font-black text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors duration-200">
+            EduPortal
+          </span>
         </Link>
 
         {/* ── Desktop Nav ── */}

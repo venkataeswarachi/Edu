@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../services/api";
+import { aiApi } from "../services/api";
 import ReactMarkdown from "react-markdown";
-import { Send, MessageCircle, Bot, User, Sparkles, Trash2 } from "lucide-react";
+import { Send, Bot, User, Sparkles, Trash2 } from "lucide-react";
 
 const TypingIndicator = () => (
     <div className="flex items-start gap-3 animate-fade-up">
@@ -44,16 +44,16 @@ const ChatAI = () => {
         setMessage("");
         setLoading(true);
         try {
-            const res = await api.post("/ai/chat", { message: userMessage });
-            setChatHistory([
-                ...newHistory,
-                { role: "ai", text: res.data.reply && res.data.reply.trim() !== "" ? res.data.reply : "Sorry, I couldn't generate a response. Please try again." }
-            ]);
-        } catch {
-            setChatHistory([
-                ...newHistory,
-                { role: "ai", text: "Sorry, I encountered an error. Please try again." }
-            ]);
+            const res = await aiApi.post("/chat", { message: userMessage });
+            const reply = res.data?.reply?.trim() || "I couldn't generate a response. Please try again.";
+            setChatHistory([...newHistory, { role: "ai", text: reply }]);
+        } catch (err) {
+            const msg = err.code === "ECONNABORTED"
+                ? "Request timed out — the AI is taking too long. Please try again."
+                : err.response?.status === 500
+                    ? "The AI service encountered an error. Please check that ai-service is running and the GROQ_API_KEY is valid."
+                    : "Unable to reach the AI service. Make sure it's running on port 8000.";
+            setChatHistory([...newHistory, { role: "ai", text: msg }]);
         } finally {
             setLoading(false);
         }
@@ -134,8 +134,8 @@ const ChatAI = () => {
                         {/* Avatar */}
                         <div
                             className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === "user"
-                                    ? "bg-gradient-to-br from-slate-700 to-slate-900 text-white"
-                                    : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
+                                ? "bg-gradient-to-br from-slate-700 to-slate-900 text-white"
+                                : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
                                 }`}
                         >
                             {msg.role === "user" ? <User size={14} /> : <Bot size={14} />}
@@ -144,8 +144,8 @@ const ChatAI = () => {
                         {/* Bubble */}
                         <div
                             className={`max-w-lg group relative ${msg.role === "user"
-                                    ? "bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-md shadow-indigo-100"
-                                    : "bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm"
+                                ? "bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-md shadow-indigo-100"
+                                : "bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm"
                                 }`}
                         >
                             {msg.role === "ai" ? (

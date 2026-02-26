@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../services/api";
+import { aiApi } from "../services/api";
 import {
   Brain, GraduationCap, BookOpen, Play, CheckCircle, XCircle,
   ArrowRight, Target, Clock, Loader2
@@ -41,7 +41,7 @@ const Preparation = () => {
     const finalTopic = subtopic ? `${topic} - ${subtopic}` : topic;
     setLoading(true);
     try {
-      const response = await api.post("/ai/generate-questions", {
+      const response = await aiApi.post("/generate-questions", {
         exam_type: selectedExam, topic: finalTopic, num_questions: numQuestions, difficulty,
       });
       let data;
@@ -130,14 +130,14 @@ const Preparation = () => {
               return (
                 <button key={letter} onClick={() => !showAnswer && handleAnswerSelect(letter)} disabled={showAnswer}
                   className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all duration-200 ${isCorrect ? "border-emerald-400 bg-emerald-50 text-emerald-800"
-                      : isWrong ? "border-rose-400 bg-rose-50 text-rose-800"
-                        : showAnswer ? "border-slate-100 bg-slate-50 text-slate-500"
-                          : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700"
+                    : isWrong ? "border-rose-400 bg-rose-50 text-rose-800"
+                      : showAnswer ? "border-slate-100 bg-slate-50 text-slate-500"
+                        : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700"
                     }`}>
                   <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 transition-all ${isCorrect ? "bg-emerald-500 text-white"
-                      : isWrong ? "bg-rose-500 text-white"
-                        : showAnswer ? "bg-slate-200 text-slate-500"
-                          : "bg-indigo-100 text-indigo-700"
+                    : isWrong ? "bg-rose-500 text-white"
+                      : showAnswer ? "bg-slate-200 text-slate-500"
+                        : "bg-indigo-100 text-indigo-700"
                     }`}>{letter}</span>
                   <span className="flex-1 text-sm font-medium">{option}</span>
                   {isCorrect && <CheckCircle size={18} className="text-emerald-500 flex-shrink-0" />}

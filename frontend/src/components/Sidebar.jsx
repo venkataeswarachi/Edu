@@ -43,22 +43,11 @@ const Sidebar = () => {
 
     return (
         <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 flex flex-col z-40">
-            {/* Logo header */}
-            <div className="h-16 flex items-center px-4 border-b border-slate-100">
-                <Link to="/" className="group flex items-center">
-                    <img
-                        src="/logo.jpg"
-                        alt="EduPortal"
-                        className="h-9 w-auto object-contain rounded-lg transition-transform duration-200 group-hover:scale-105"
-                    />
-                </Link>
-            </div>
-
             {/* Brand strip */}
             <div className="h-0.5 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
-            {/* Nav items */}
-            <div className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+            {/* Nav items — pt-16 clears the fixed Navbar */}
+            <div className="flex-1 overflow-y-auto pt-16 py-4 px-3 space-y-0.5">
                 {navItems.map(({ to, icon: Icon, label }) => {
                     const active = isActive(to);
                     return (

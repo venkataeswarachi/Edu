@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import api from "../services/api";
+import { aiApi } from "../services/api";
 import {
   TrendingUp, Zap, BookOpen, Target, Rocket, Code, Lightbulb,
   ArrowLeft, Loader2, CheckCircle, Clock, Plus, AlertCircle
@@ -25,12 +25,20 @@ const Trends = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post("/ai/latest-trends", { course: courseName });
+      const response = await aiApi.post("/latest-trends", { course: courseName });
       let data;
       try { data = JSON.parse(response.data.trends); }
       catch { setError("Failed to parse trends data."); return; }
       if (!data.trending_domains || !data.technologies || !data.roadmap) {
         setError("Invalid response structure."); return;
+      }
+      // Normalise: if LLM returned plain strings instead of {name,description,growth} objects
+      if (data.trending_domains.length > 0 && typeof data.trending_domains[0] === "string") {
+        data.trending_domains = data.trending_domains.map((d) => ({
+          name: d,
+          description: `${d} is a rapidly growing area in ${courseName}.`,
+          growth: "",
+        }));
       }
       setTrendsData(data);
     } catch {

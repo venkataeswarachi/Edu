@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import api from "../services/api";
+import { aiApi } from "../services/api";
 import {
     Upload, CheckCircle, XCircle, FileText, Search, BookOpen,
     Lightbulb, ChevronRight, Loader2, BarChart3, AlertCircle
@@ -82,10 +82,20 @@ const PredictScope = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.post("/ml/predict-fit-file", formData);
+            const res = await aiApi.post("/full-analysis", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+                timeout: 90000,
+            });
             setResult(res.data);
-        } catch {
-            setError("Analysis failed. Please check your files and try again.");
+        } catch (err) {
+            const status = err.response?.status;
+            setError(
+                status === 422
+                    ? "Could not read one of your files. Please upload a valid PDF, DOCX, or TXT file."
+                    : status === 503
+                        ? "AI service is unavailable. Make sure ai-service is running on port 8000."
+                        : "Analysis failed. Please check your files and try again."
+            );
         } finally {
             setLoading(false);
         }
