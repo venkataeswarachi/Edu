@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
@@ -6,12 +6,17 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 import json
+import io
+import re
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 import numpy as np
+# PDF / DOCX text extraction
+from pdfminer.high_level import extract_text as pdf_extract_text
+from docx import Document as DocxDocument
 
 load_dotenv()
 
@@ -214,7 +219,6 @@ career_model = load_or_train_model()
 # ─────────────────────────────────────────────
 
 class MessageRequest(BaseModel):
-    username: str
     message: str
 
 class ExamQuestionRequest(BaseModel):
@@ -332,42 +336,32 @@ async def ask_ai(request: MessageRequest):
 @app.post("/chat")
 async def chat_ai(request: MessageRequest):
     try:
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
         completion = client.chat.completions.create(
-            model="groq/compound",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant. Always respond in 6-7 simple bullet points. Keep answers concise and easy to understand."
+                    "content": "Respond in 6-7 simple bullet points. No greetings."
                 },
-                {"role": "user", "content": request.message}
+                {
+                    "role": "user",
+                    "content": request.message
+                }
             ],
             temperature=0.7,
-            max_completion_tokens=1024,
-            compound_custom={"tools": {"enabled_tools": ["web_search", "code_interpreter", "visit_website"]}}
+            max_tokens=1024,
+            stream=False  # IMPORTANT
         )
+
         reply = completion.choices[0].message.content
+        return {"reply": reply}
+
     except Exception as e:
         import logging
-        logging.error(f"Groq/compound model failed: {e}")
-        try:
-            completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant. Always respond in 6-7 simple bullet points. Keep answers concise and easy to understand. Do NOT start your answer with 'I'm here to help!' or any greeting."
-                    },
-                    {"role": "user", "content": request.message}
-                ],
-                temperature=0.7,
-                max_completion_tokens=1024,
-            )
-            reply = completion.choices[0].message.content
-        except Exception as e2:
-            logging.error(f"llama-3.1 model also failed: {e2}")
-            reply = "Sorry, I am unable to process your request at the moment. Please try again later."
-    return {"reply": reply}
-
+        logging.error(f"Chat failed: {e}")
+        raise HTTPException(status_code=500, detail="AI service failed.")
 
 @app.post("/generate-questions")
 async def generate_questions(request: ExamQuestionRequest):
@@ -405,21 +399,60 @@ async def generate_questions(request: ExamQuestionRequest):
     Make questions relevant to {request.exam_type} exam pattern and {request.topic} topic.
     """
 
-    completion = client.chat.completions.create(
-        model="groq/compound",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert exam question generator. You must respond ONLY with valid JSON. No markdown, no code blocks, no explanations. Just pure JSON."
-            },
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_completion_tokens=2048,
-        compound_custom={"tools": {"enabled_tools": ["web_search", "code_interpreter"]}}
-    )
+    try:
+        completion = client.chat.completions.create(
+            model="groq/compound",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert exam question generator. You must respond ONLY with valid JSON. No markdown, no code blocks, no explanations. Just pure JSON."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_completion_tokens=2048,
+            compound_custom={"tools": {"enabled_tools": ["web_search", "code_interpreter"]}}
+        )
+        raw_content = completion.choices[0].message.content.strip()
+    except Exception:
+        # Try fallback model
+        try:
+            completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert exam question generator. You must respond ONLY with valid JSON. No markdown, no code blocks, no explanations. Just pure JSON."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_completion_tokens=2048,
+            )
+            raw_content = completion.choices[0].message.content.strip()
+        except Exception as e2:
+            import logging
+            logging.error(f"All Groq models failed for generate-questions: {e2}")
+            fallback_data = {
+                "practice_questions": [
+                    {
+                        "question": f"Sample practice question {i+1} for {request.topic} ({request.exam_type})",
+                        "options": ["Option A", "Option B", "Option C", "Option D"],
+                        "correct_answer": "A",
+                        "solution": f"This is a placeholder — please add a valid GROQ_API_KEY to ai-service/.env"
+                    } for i in range(min(request.num_questions, 5))
+                ],
+                "quiz_questions": [
+                    {
+                        "question": f"Sample quiz question {i+1} for {request.topic} ({request.exam_type})",
+                        "options": ["Option A", "Option B", "Option C", "Option D"],
+                        "correct_answer": "A",
+                        "solution": f"This is a placeholder — please add a valid GROQ_API_KEY to ai-service/.env"
+                    } for i in range(10)
+                ]
+            }
+            return {"exam_type": request.exam_type, "topic": request.topic, "questions": json.dumps(fallback_data)}
 
-    raw_content = completion.choices[0].message.content.strip()
     for prefix in ["```json", "```"]:
         if raw_content.startswith(prefix):
             raw_content = raw_content[len(prefix):]
@@ -458,72 +491,216 @@ async def generate_questions(request: ExamQuestionRequest):
 @app.post("/latest-trends")
 async def latest_trends(request: TrendRequest):
     prompt = f"""
-    User is studying {request.course}.
+User is studying {request.course}.
 
-    IMPORTANT: Respond ONLY with valid JSON. Do not include any markdown formatting, code blocks, or extra text.
+IMPORTANT: Respond ONLY with valid JSON. No markdown, no code blocks, no extra text.
 
-    Provide latest trends in this field including:
-    1. Latest technologies in demand
-    2. Trending domains
-    3. Career opportunities
-    4. Complete roadmap from beginner to advanced
-    5. Tools and programming languages to learn
-    6. Industry demand and future scope
+Provide the latest trends for this field. Use EXACTLY this JSON structure:
+{{
+    "course": "{request.course}",
+    "trending_domains": [
+        {{"name": "Domain Name", "description": "1-2 sentence description of why this is trending.", "growth": "e.g. +45% YoY"}},
+        {{"name": "Domain Name 2", "description": "Description.", "growth": "+30% YoY"}},
+        {{"name": "Domain Name 3", "description": "Description.", "growth": "+25% YoY"}},
+        {{"name": "Domain Name 4", "description": "Description.", "growth": "+20% YoY"}},
+        {{"name": "Domain Name 5", "description": "Description.", "growth": "+15% YoY"}}
+    ],
+    "technologies": ["tech1", "tech2", "tech3", "tech4", "tech5", "tech6"],
+    "roadmap": [
+        {{"step": "Step 1: Title", "description": "What to learn and do.", "duration": "X months"}},
+        {{"step": "Step 2: Title", "description": "What to learn and do.", "duration": "X months"}},
+        {{"step": "Step 3: Title", "description": "What to learn and do.", "duration": "X months"}},
+        {{"step": "Step 4: Title", "description": "What to learn and do.", "duration": "Ongoing"}}
+    ],
+    "tools": ["tool1", "tool2", "tool3", "tool4"],
+    "career_roles": ["role1", "role2", "role3"],
+    "future_scope": "2-3 sentence summary of the future outlook for this field."
+}}
+"""
 
-    Respond ONLY with this JSON structure:
-    {{
-        "course": "{request.course}",
-        "trending_domains": ["domain1", "domain2", "domain3"],
-        "technologies": ["tech1", "tech2", "tech3"],
-        "roadmap": [
-            {{"step": "Step 1: Beginner", "description": "Foundations", "duration": "3-4 months"}}
-        ],
-        "tools": ["tool1", "tool2"],
-        "career_roles": ["role1", "role2"],
-        "future_scope": "details"
-    }}
-    """
+    def _fallback():
+        return {
+            "course": request.course,
+            "trending_domains": [
+                {"name": "Artificial Intelligence", "description": f"AI is transforming {request.course} with automation and intelligent systems.", "growth": "+48% YoY"},
+                {"name": "Cloud Computing", "description": "Scalable infrastructure is now a core skill across all tech domains.", "growth": "+35% YoY"},
+                {"name": "Data Engineering", "description": "Handling large-scale data pipelines is in high demand.", "growth": "+30% YoY"},
+                {"name": "DevOps & MLOps", "description": "Bridging development and operations pipelines for faster delivery.", "growth": "+25% YoY"},
+                {"name": "Cybersecurity", "description": "Protecting systems and data is a growing priority for every organisation.", "growth": "+20% YoY"},
+            ],
+            "technologies": ["Python", "Docker", "Kubernetes", "TensorFlow", "AWS", "Git"],
+            "roadmap": [
+                {"step": "Step 1: Foundations", "description": f"Build a solid base in {request.course} fundamentals.", "duration": "3-4 months"},
+                {"step": "Step 2: Hands-on Projects", "description": "Build 2-3 real-world portfolio projects.", "duration": "3-4 months"},
+                {"step": "Step 3: Specialisation", "description": "Deep-dive into one high-demand sub-domain.", "duration": "3-4 months"},
+                {"step": "Step 4: Industry Readiness", "description": "Prepare for interviews, certifications, and open-source contributions.", "duration": "Ongoing"},
+            ],
+            "tools": ["Git", "Docker", "VS Code", "Postman"],
+            "career_roles": [f"{request.course} Engineer", f"{request.course} Architect", "Technical Lead"],
+            "future_scope": f"{request.course} is one of the fastest-growing fields globally with strong demand and competitive salaries. Professionals with specialised skills can expect significant career growth over the next decade.",
+        }
 
-    completion = client.chat.completions.create(
-        model="groq/compound",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert career advisor. Respond ONLY with valid JSON. No markdown, no explanations."
-            },
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_completion_tokens=2048,
-        compound_custom={"tools": {"enabled_tools": ["web_search", "visit_website", "code_interpreter"]}}
-    )
-
-    raw_content = completion.choices[0].message.content.strip()
-    for prefix in ["```json", "```"]:
-        if raw_content.startswith(prefix):
-            raw_content = raw_content[len(prefix):]
-    if raw_content.endswith("```"):
-        raw_content = raw_content[:-3]
-    raw_content = raw_content.strip()
-
+    raw_content = None
     try:
+        groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are an expert career advisor. Respond ONLY with valid JSON. No markdown, no explanations."},
+                {"role": "user",   "content": prompt},
+            ],
+            temperature=0.5,
+            max_tokens=2048,
+        )
+        raw_content = completion.choices[0].message.content.strip()
+        for fence in ["```json", "```"]:
+            if raw_content.startswith(fence):
+                raw_content = raw_content[len(fence):]
+        if raw_content.endswith("```"):
+            raw_content = raw_content[:-3]
+        raw_content = raw_content.strip()
         parsed_data = json.loads(raw_content)
+        # Normalise trending_domains: if strings came back, upgrade to objects
+        domains = parsed_data.get("trending_domains", [])
+        if domains and isinstance(domains[0], str):
+            parsed_data["trending_domains"] = [
+                {"name": d, "description": f"{d} is a rapidly growing area in {request.course}.", "growth": ""}
+                for d in domains
+            ]
         if "course" not in parsed_data:
             parsed_data["course"] = request.course
         return {"course": request.course, "trends": json.dumps(parsed_data)}
-    except (json.JSONDecodeError, ValueError):
-        fallback_data = {
-            "course": request.course,
-            "trending_domains": ["AI & ML", "Cloud Computing", "Data Science", "DevOps", "Cybersecurity"],
-            "technologies": ["Python", "Kubernetes", "Docker", "TensorFlow", "AWS"],
-            "roadmap": [
-                {"step": "Step 1: Beginner Foundations", "description": f"Learn basics of {request.course}", "duration": "3-4 months"},
-                {"step": "Step 2: Intermediate Development", "description": f"Build projects in {request.course}", "duration": "3-4 months"},
-                {"step": "Step 3: Advanced Specialization", "description": f"Master {request.course}", "duration": "3-4 months"},
-                {"step": "Step 4: Expert Mastery", "description": f"Lead in {request.course}", "duration": "ongoing"}
+    except Exception as e:
+        import logging
+        logging.error(f"/latest-trends error: {e}. Using fallback.")
+        return {"course": request.course, "trends": json.dumps(_fallback())}
+
+
+# ─────────────────────────────────────────────
+# Career Screener — /full-analysis
+# ─────────────────────────────────────────────
+
+def _extract_text_from_upload(upload_bytes: bytes, filename: str) -> str:
+    """Extract plain text from PDF or DOCX bytes."""
+    fname = (filename or "").lower()
+    try:
+        if fname.endswith(".pdf"):
+            return pdf_extract_text(io.BytesIO(upload_bytes))
+        elif fname.endswith(".docx"):
+            doc = DocxDocument(io.BytesIO(upload_bytes))
+            return "\n".join(p.text for p in doc.paragraphs)
+        else:
+            # Try raw UTF-8 (plain text files)
+            return upload_bytes.decode("utf-8", errors="ignore")
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not read file '{filename}': {e}")
+
+
+def _keyword_fallback(resume_text: str, jd_text: str) -> dict:
+    """Simple regex-based skill extractor used when Groq is unavailable."""
+    SKILL_PATTERNS = [
+        r"python", r"java(?:script)?", r"react", r"node\.?js", r"sql", r"mongodb",
+        r"docker", r"kubernetes", r"aws", r"azure", r"machine learning", r"deep learning",
+        r"tensorflow", r"pytorch", r"fastapi", r"spring", r"git", r"linux", r"c\+\+",
+        r"typescript", r"html", r"css", r"django", r"flask", r"pandas", r"numpy",
+        r"excel", r"power bi", r"tableau", r"spark", r"hadoop", r"kafka",
+    ]
+    def extract(text):
+        found = set()
+        tl = text.lower()
+        for p in SKILL_PATTERNS:
+            if re.search(p, tl):
+                found.add(p.replace(r"\.", ".").replace(r"(?:script)?", "script").strip("(").strip("\\?"))
+        return sorted(found)
+
+    resume_skills = extract(resume_text)
+    job_skills    = extract(jd_text)
+    matched = sorted(set(resume_skills) & set(job_skills))
+    missing = sorted(set(job_skills)   - set(resume_skills))
+    score = round((len(matched) / max(len(job_skills), 1)) * 100, 1)
+    resources = {s: f"https://www.coursera.org/search?query={s.replace(' ', '+')}" for s in missing[:5]}
+    return {
+        "match_score": score,
+        "resume_skills": resume_skills,
+        "job_skills": job_skills,
+        "matched_skills": matched,
+        "missing_skills": missing,
+        "prediction": {"prediction": "Good Match" if score >= 60 else "Needs Improvement", "confidence": round(score / 100, 2)},
+        "learning_resources": resources,
+        "project_ideas": "Build end-to-end projects that use the missing skills above to bridge your gap.",
+    }
+
+
+@app.post("/full-analysis")
+async def full_analysis(
+    resume: UploadFile = File(...),
+    job_description: UploadFile = File(...),
+):
+    resume_bytes = await resume.read()
+    jd_bytes     = await job_description.read()
+
+    resume_text = _extract_text_from_upload(resume_bytes, resume.filename or "resume.txt")
+    jd_text     = _extract_text_from_upload(jd_bytes,     job_description.filename or "jd.txt")
+
+    # Trim to avoid exceeding token limits
+    resume_text = resume_text[:4000]
+    jd_text     = jd_text[:3000]
+
+    prompt = f"""
+You are an expert HR analyst and career coach. Analyze the following resume and job description.
+
+RESUME:
+{resume_text}
+
+JOB DESCRIPTION:
+{jd_text}
+
+Respond ONLY with valid JSON in exactly this structure — no markdown, no extra text:
+{{
+  "match_score": <number 0-100>,
+  "resume_skills": [<list of skills found in resume>],
+  "job_skills": [<list of skills required by job>],
+  "matched_skills": [<skills present in both>],
+  "missing_skills": [<skills in job but not in resume>],
+  "prediction": {{
+    "prediction": "<Strong Match|Good Match|Partial Match|Needs Improvement>",
+    "confidence": <number 0-1>
+  }},
+  "learning_resources": {{
+    "<missing skill>": "<https://coursera or udemy link>"
+  }},
+  "project_ideas": "<2-3 sentence paragraph on portfolio project ideas to bridge the gap>"
+}}
+"""
+
+    raw = None
+    try:
+        groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are an expert HR analyst. Respond ONLY with valid JSON. No markdown."},
+                {"role": "user",   "content": prompt},
             ],
-            "tools": ["Git", "Docker", "VS Code", "Postman", "JIRA"],
-            "career_roles": [f"{request.course} Developer", f"{request.course} Architect", "Technical Lead"],
-            "future_scope": f"{request.course} is in high demand with excellent career growth and competitive salaries globally."
-        }
-        return {"course": request.course, "trends": json.dumps(fallback_data)}
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        raw = completion.choices[0].message.content.strip()
+        # Strip markdown fences if present
+        for fence in ["```json", "```"]:
+            if raw.startswith(fence):
+                raw = raw[len(fence):]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        raw = raw.strip()
+        result = json.loads(raw)
+        # Ensure required keys exist
+        required = ["match_score", "resume_skills", "job_skills", "matched_skills",
+                    "missing_skills", "prediction", "learning_resources", "project_ideas"]
+        if not all(k in result for k in required):
+            raise ValueError("Missing fields in Groq response")
+        return result
+    except Exception as e:
+        import logging
+        logging.error(f"/full-analysis Groq error: {e}. Using keyword fallback.")
+        return _keyword_fallback(resume_text, jd_text)

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 // ── Axios instance pointing at the ai-service ────────────────────────────────
-const aiApi = axios.create({ baseURL: "http://localhost:8001" });
+const aiApi = axios.create({ baseURL: "http://localhost:8000" });
 
 // ── All 58 interest features grouped for better UX ───────────────────────────
 const INTEREST_GROUPS = [
